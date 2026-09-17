@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+}
+
+enum EnquiryStatus {
+  NEW
+  QUOTED
+  WON
+  LOST
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  DISPATCHED
+  CANCELLED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id           Int       @id @default(autoincrement())
+  companyName  String
+  contactPerson String
+  mobile       String
+  email        String
+  city         String
+  enquiries    Enquiry[]
+  quotations   Quotation[]
+  orders       SalesOrder[]
+  createdAt    DateTime @default(now())
+}
+
+model Product {
+  id              Int              @id @default(autoincrement())
+  code            String           @unique
+  name            String
+  category        String
+  unit            String
+  basePrice       Decimal          @db.Decimal(12,2)
+  inventory       Inventory?
+  enquiryItems    EnquiryItem[]
+  quotationItems  QuotationItem[]
+  orderItems      SalesOrderItem[]
+  createdAt       DateTime         @default(now())
+}
+
+model Inventory {
+  id        Int      @id @default(autoincrement())
+  productId Int      @unique
+  physical  Int      @default(0)
+  reserved  Int      @default(0)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  
+}
+
+model Enquiry {
+  id           Int           @id @default(autoincrement())
+  number       String        @unique
+  customerId   Int
+  enquiryDate  DateTime
+  requiredDate DateTime
+  notes        String?
+  status       EnquiryStatus @default(NEW)
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  items        EnquiryItem[]
+  quotations   Quotation[]
+  createdAt    DateTime      @default(now())
+}
+
+model EnquiryItem {
+  id        Int     @id @default(autoincrement())
+  enquiryId Int
+  productId Int
+  quantity  Int
+  enquiry   Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([enquiryId, productId])
+}
+
+model Quotation {
+  id          Int             @id @default(autoincrement())
+  number      String          @unique
+  enquiryId   Int
+  customerId  Int
+  validUntil  DateTime
+  status      QuotationStatus @default(DRAFT)
+  totalAmount Decimal         @db.Decimal(12,2)
+  enquiry     Enquiry         @relation(fields: [enquiryId], references: [id])
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  items       QuotationItem[]
+  salesOrder  SalesOrder?
+  createdAt   DateTime        @default(now())
+}
+
+model QuotationItem {
+  id          Int       @id @default(autoincrement())
+  quotationId Int
+  productId   Int
+  quantity    Int
+  unitPrice   Decimal   @db.Decimal(12,2)
+  discountPct Decimal   @db.Decimal(5,2)
+  gstPct      Decimal   @db.Decimal(5,2)
+  lineAmount  Decimal   @db.Decimal(12,2)
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+}
+
+model SalesOrder {
+  id            Int         @id @default(autoincrement())
+  number        String      @unique
+  quotationId   Int         @unique
+  customerId    Int
+  orderDate     DateTime    @default(now())
+  totalAmount   Decimal     @db.Decimal(12,2)
+  status        OrderStatus @default(PENDING)
+  quotation     Quotation   @relation(fields: [quotationId], references: [id])
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  items         SalesOrderItem[]
+  dispatch      Dispatch?
+}
+
+model SalesOrderItem {
+  id          Int        @id @default(autoincrement())
+  salesOrderId Int
+  productId   Int
+  quantity    Int
+  unitPrice   Decimal    @db.Decimal(12,2)
+  salesOrder  SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product     Product    @relation(fields: [productId], references: [id])
+  @@unique([salesOrderId, productId])
+}
+
+model Dispatch {
+  id          Int        @id @default(autoincrement())
+  number      String     @unique
+  salesOrderId Int        @unique
+  dispatchDate DateTime  @default(now())
+  vehicleNumber String
+  driverName   String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+}
